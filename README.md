@@ -1,3 +1,52 @@
+# 9月28日最终完善版本
+_________________________________
+✅ **Gemini in Chrome 侧边栏已成功打开并能正常使用！**
+
+## 完整解决过程
+
+### 第一层：`.bat` 一闪而过（换行符问题）
+- [`enable-chrome-ai.bat`](enable-chrome-ai.bat:1) 和 [`启动Chrome(带AI).bat`](启动Chrome(带AI).bat:1) 原本是 **LF 换行符**，cmd.exe 解析 `if (...)` 括号块时崩溃导致窗口一闪而过
+- 已转换为 **CRLF**（已验证：5/20 处 CRLF，0 处 LF-only）
+
+### 第二层：图标出现但侧边栏打不开（Chrome 153+ 服务端/地区过滤问题）
+在深入逆向 Chrome 154 的 `chrome.dll` 和查阅原项目 GitHub PR [#28](https://github.com/lcandy2/enable-chrome-ai/pull/28) 后，发现 Chrome 新版本通过 `GlicUserStatusFetcher` 请求 `geminiweb-pa.googleapis.com/v1/glicStatus` 判定资格，并使用 **session 地区过滤**，导致单纯本地 patch 不完整。最终补齐以下要素后成功：
+
+**Local State 需设置**（[`enable-chrome-ai-win.js`](enable-chrome-ai-win.js:57)）：
+| 字段 | 值 |
+|------|-----|
+| `variations_country` | `"us"` |
+| `variations_permanent_consistency_country` | `["当前版本号", "us"]` |
+| `variations_permanent_overridden_country` | `"us"` |
+| `variations_safe_seed_permanent_consistency_country` | `["当前版本号", "us"]` |
+| `variations_safe_seed_session_consistency_country` | `"us"` |
+| `variations_safe_seed_locale` | `"en-US"` |
+| 所有 `is_glic_eligible` | `true` |
+| `browser.enabled_labs_experiments` | 追加 `glic@1`、`glic-actor@1`、`glic-entrypoint-variations@1` |
+
+**每个 Profile 的 Preferences 需设置**：
+- `glic.previously_not_allowed = false`
+- `glic.pinned_to_tabstrip = true`
+- `sync.glic_rollout_eligibility = true`
+- `browser.gemini_settings = 0`
+- `glic.profile_enablement.last_ready_state = 3`
+
+**启动 Chrome 的关键参数**（[`启动Chrome(带AI).bat`](启动Chrome(带AI).bat:5)）：
+```
+--variations-override-country=us --glic-dev
+--enable-features=Glic,GlicActor,GlicActorUi,GlicActorUiMagicCursor,GlicActorAutofill,GlicSelectionPrompt,GlicUseToolbarHeightSidePanel,GlicGuest,GlicPinned,GlicZeroStateSuggestions,PromptAPI,OptimizationGuideOnDeviceModel
+--disable-features=GlicUseSessionCountryForFiltering,DisableGlic
+```
+
+其中 **`--disable-features=GlicUseSessionCountryForFiltering`**（禁用 session 地区过滤）和 **`--glic-dev`**、**`--variations-override-country=us`** 是侧边栏能打开的关键 —— 它们阻止 Chrome 用实际的 CN 地区覆盖本地 patch，并启用 GLIC 面板。
+
+##👌👌👌👌 使用方式
+1. 运行 [`enable-chrome-ai.bat`](enable-chrome-ai.bat:1) —— 自动关闭 Chrome 并写入全部配置
+2. 双击 [`启动Chrome(带AI).bat`](启动Chrome(带AI).bat:1) —— 用正确的参数启动 Chrome，即可正常使用 Gemini 侧边栏
+
+
+
+
+
 # Enable Chrome AI ✨
 
 **一键开启 Chrome 内置 AI 功能，零依赖，开箱即用！**
